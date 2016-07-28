@@ -19,14 +19,17 @@ parameters {
 }
 transformed parameters {
   vector[N] mu_vec;
-  matrix[N, N] L;
-  corr_matrix[N] Sigma;
+  matrix[N,N] L;
+  matrix[N,N] Sigma;
   matrix[N,N] nugget_matrix;
 
   Sigma = exp(-d / lengthscale);
 
   for (i in 1:N){
     for (j in 1:N){
+      Sigma[i,j] = (1.0 +
+                    sqrt(3) * d[i,j] / lengthscale) *
+                      exp(-sqrt(3) * d[i,j] / lengthscale);
       nugget_matrix[i,j] = i==j ? nugget_sd^2 : 0.0;
     }
   }
@@ -48,17 +51,17 @@ model {
   // priors //
 
   // Lengthscale is probably on the order of 1 sd(x)
-  lengthscale ~ cauchy(0, 2);
+  lengthscale ~ student_t(10, 0, 5);
 
-  // gamma(3, 1) prior has a peak around 2 sd (i.e. function's variance is about
-  // 2^2 times as big as the variance of the observed portion)
+  // gamma(4, 1) prior has a peak around 3 sd (i.e. function's variance is about
+  // 3^2 times as big as the variance of the observed portion)
   fn_sd ~ gamma(3.0, 1.0);
 
   // Nugget shouldn't be 0 or enormous. Prior peaked around sqrt(1/2)
   // corresponds to a nugget that accounts for half of the variance
-  nugget_sd ~ gamma(2, sqrt(2));
+  nugget_sd ~ gamma(2.0, sqrt(2.0));
 
-  mu ~ cauchy(mean(y), 5.0);
+  mu ~ cauchy(mean(y), 2.0);
 
   // likelihood //
 

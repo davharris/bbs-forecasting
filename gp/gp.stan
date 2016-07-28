@@ -1,14 +1,21 @@
 data {
-  int<lower=1> N;
-  vector[N] x;
-  vector[N] y;
-  matrix[N,N] d;
+  int<lower=1> N1;
+  int<lower=1> N2;
+  vector[N1 + N2] x;
+  vector[N1] y1;
+  matrix[N1 + N2, N1 + N2] d;
+  real prior_mu_scale;
+}
+transformed data {
+  int<lower=2> N;
+  N = N1 + N2;
 }
 parameters {
-  real<lower=0> fn_variance;
   real<lower=0> lengthscale;
-  real<lower=0> nugget;
+  vector[N2] y2;
   real mu;
+  real<lower=0> nugget_sd;
+  real<lower=0> fn_sd;
 }
 transformed parameters {
   vector[N] mu_vec;
@@ -20,24 +27,40 @@ transformed parameters {
 
   for (i in 1:N){
     for (j in 1:N){
-      nugget_matrix[i,j] = i==j ? nugget : 0.0;
+      nugget_matrix[i,j] = i==j ? nugget_sd^2 : 0.0;
     }
   }
 
-  L = cholesky_decompose(fn_variance * Sigma + nugget_matrix);
+  L = cholesky_decompose(fn_sd^2 * Sigma + nugget_matrix);
 
   for(i in 1:N){
     mu_vec[i] = mu;
   }
 }
 model {
-  // Prior with peak at 1. Very broad, >95% of the weight between .00005 and 13
-  fn_variance ~ gamma(1.25, 0.25);
-  lengthscale ~ gamma(1.25, 0.25);
-  nugget ~ gamma(1.25, 0.25);
 
-  mu ~ cauchy(mean(y), 5);
+  // Bookkeeping //
+
+  vector[N] y;
+  for (n in 1:N1) y[n] = y1[n];
+  for (n in 1:N2) y[N1 + n] = y2[n];
+
+  // priors //
+
+  // Lengthscale is probably on the order of 1 sd(x)
+  lengthscale ~ cauchy(0, 2);
+
+  // gamma(3, 1) prior has a peak around 2 sd (i.e. function's variance is about
+  // 2^2 times as big as the variance of the observed portion)
+  fn_sd ~ gamma(3.0, 1.0);
+
+  // Nugget shouldn't be 0 or enormous. Prior peaked around sqrt(1/2)
+  // corresponds to a nugget that accounts for half of the variance
+  nugget_sd ~ gamma(2, sqrt(2));
+
+  mu ~ cauchy(mean(y), 5.0);
+
+  // likelihood //
+
   y ~ multi_normal_cholesky(mu_vec, L);
 }
-
-

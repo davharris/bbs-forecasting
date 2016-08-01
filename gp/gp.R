@@ -1,32 +1,100 @@
+library(forecast)
+library(lme4)
 library(rstan)
 library(mvtnorm)
+library(tidyr)
+library(dplyr)
+devtools::load_all()
 
-f = function(x) {2 * sin(pi *  x / 2) + sin(pi * x^2) + 1.2 * x + x^2}
+start_yr <- 1982
+end_yr <- 2013
+min_num_yrs <- 25
+last_training_year <- 2003
+richness_w_env <- get_richness_ts_env_data(start_yr, end_yr, min_num_yrs) %>%
+  subset(year <=last_training_year) %>%
+  na.omit()
 
-N1 = 40
-N2 = 41
+arima_data = richness_w_env %>%
+  dplyr::select(site_id, year, richness) %>%
+  group_by(site_id) %>%
+  tidyr::spread(key = year, value = richness) %>%
+  t() %>%
+  tbl_df()
+colnames(arima_data) = arima_data[1, ]
+arima_data = arima_data[-1, ]
+
+naive_sigmas = sapply(arima_data, function(x) sd(diff(x), na.rm = TRUE))
+
+diffs = sapply(arima_data, function(x) diff(x))
+diff_var = apply(diffs, 2, var, na.rm = TRUE)
+
+lmer_model = lmer(
+  richness ~ (1|site_id),
+  data = richness_w_env
+)
+
+mses = richness_w_env %>%
+  cbind(resid = resid(lmer_model)) %>%
+  group_by(site_id) %>%
+  summarize(mse = mean(resid^2)) %>%
+  magrittr::extract2("mse")
+
+fn_sd_prior = MASS::fitdistr(sqrt(2 * mses), "gamma")$estimate
+
+resid_var = data_frame(site_id = richness_w_env$site_id, resid = resid(lmer_model)) %>%
+  group_by(site_id) %>%
+  summarize(var(resid)) %>%
+  magrittr::extract2("var(resid)")
+
+
+# choose Y1 ---------------------------------------------------------------
+
+site_id = sample(names(which(colSums(is.na(arima_data))==0)), 1)
+y1 = arima_data[[site_id]]
+plot(y1)
+
+# Priors ------------------------------------------------------------------
+
+# Empirical prior distribution on mu
+means_factor = 2
+means_prior = c(
+  fixef(lmer_model),
+  sd(ranef(lmer_model)$site_id[[1]])
+)
+
+# Prior on fn_sd
+fn_factor = 2 # We haven't observed the full range of variation
+fn_scale_prior = MASS::fitdistr(fn_factor * sqrt(resid_var), "gamma")$estimate
+curve(dgamma(x, fn_scale_prior[1], fn_scale_prior[2]), to = 2 * sd(richness_w_env$richness), xlab = "richness fn_sd")
+
+
+# prior distribution on nugget_sd
+# Arbitrarily say we're explaining about half of the observed variance.
+# The prior on this parameter gets swamped by the likelihood anyway
+nugget_prior = c(5, sqrt(40 / var(y1)))
+curve(dgamma(x, nugget_prior[1], nugget_prior[2]), to = sqrt(2 * var(y1)), xlab = "richness nugget")
+abline(v = sqrt(var(y1)/2))
+
+# Prior distribution on the lengthscale
+# Lengthscale probably between 1 and 20 years
+lengthscale_prior = c(3, 1/4)
+curve(dgamma(x, lengthscale_prior[1], lengthscale_prior[2]), to = 30, xlab = "years")
+abline(v = 1)
+abline(v = 20)
+
+
+# GP ----------------------------------------------------------------------
+
+N1 = length(y1)
+N2 = 9
 N = N1 + N2
-x = c(scale(1:N))
-x[N] = 1000
-y = rnorm(N, f(x), sd = 1)
+x = 1:N
 
-plot(y[-N] ~ x[-N])
-abline(v = x[N1])
+d = as.matrix(dist(x))
 
-y1 = y[1:N1]
-
-shift = mean(y[1:N1])
-std = sd(y[1:N1])
-
-y  = (y - shift)  / std
-y1 = (y1 - shift) / std
-
-
-d = as.matrix(dist(x, method = "manhattan"))
-
-data = list(N1 = N1, N2 = N2, x = x, y1 = y1, d = d, prior_mu_scale = 5)
-
-
+data = list(N1 = N1, N2 = N2, x = x, y1 = y1, d = d, means_prior = means_prior,
+            fn_scale_prior = fn_scale_prior, nugget_prior = nugget_prior,
+            lengthscale_prior = lengthscale_prior)
 
 m = stan_model(
   "gp/gp.stan"
@@ -36,39 +104,28 @@ model = sampling(m, data = data, control = list(adapt_delta = 0.95),
                  chains = 2)
 
 
-plot(density(extract(model, "fn_sd")[[1]], adj = .1), col = 2, main = "fn_sd")
-curve(dgamma(x, 3, 1),from = 0, n = 1000, add = TRUE)
 
-plot(density(extract(model, "lengthscale")[[1]], adj = 0.1, n = 1000, from = 0), col = 2, main = "lengthscale", xaxs = "i")
-curve(2 * dt(x/5, 10) / 5, n = 1000, from = 0, add = TRUE)
+matplot(xlim = c(1, N), seq(N1+1, N), t(rstan::extract(model, "y2")[[1]]), col = "#00000010", lty = 1, pch = 16)
+points(y1)
+matlines(seq(N1+1, N), t(apply(t(rstan::extract(model, "y2")[[1]]), 1, quantile, c(.025, .975))), col = "brown", lwd = 3, lty = 2)
+rug(rstan::extract(model, "mu")[[1]], side = 2, col = "#00000010")
+lines(seq(N1+1, N), colMeans(rstan::extract(model, "y2")[[1]]), col = "forestgreen", lwd = 4)
+abline(h = range(y1), col = "#00000020")
+abline(h = mean(y1), col = "#00000040")
 
-plot(density(extract(model, "nugget_sd")[[1]], n = 1000), col = 2, main = "nugget")
-curve(dgamma(x, 2, sqrt(2)),from = 0, n = 1000, add = TRUE)
+par(mfrow = c(2, 2))
 
-plot(density(extract(model, "mu")[[1]], n = 1000), col = 2, main = "mu")
-curve(dcauchy(x, 0, 2), n = 1000, add = TRUE)
+plot(density(rstan::extract(model, "mu")[[1]], adj = .1), col = 2, main = "mean richness")
+curve(dnorm(x, means_prior[1], means_prior[2]), xlab = "years", add = TRUE, from = 0)
 
+plot(density(rstan::extract(model, "fn_sd")[[1]], adj = .1), col = 2, main = "fn_sd")
+curve(dgamma(x, fn_scale_prior[1], fn_scale_prior[2]), add = TRUE)
 
-y2s = extract(model, "y2")[[1]]
-matplot(x[seq(N1 + 1, N)], t(y2s[sample.int(nrow(y2s), 250), ]), type = "l", lty = 1, col = "#00000010", xlim = range(x[-N]), xaxs = "i", lwd = 2,
-        ylim = quantile(y2s, c(.005, .995)))
-curve(((f(x) - shift) / std) / std, col = "darkred", lwd = 2, add = TRUE, from = x[1], to = x[N-1])
-lines(x[seq(N1 + 1, N)], colMeans(y2s), col = "blue", lwd = 2)
-matlines(x[seq(N1 + 1, N)], t(apply(y2s, 2, quantile, c(.025, .975))), col = "purple", lty = 2, lwd = 2)
-matlines(x[seq(N1 + 1, N)], t(apply(y2s, 2, quantile, c(pnorm(c(-1,1))))), col = "purple", lty = 2, lwd = 2)
-abline(h = quantile(y2s[, N2], c(.025, .975)), lty = 2)
+plot(density(rstan::extract(model, "lengthscale")[[1]], adj = .1), col = 2, main = "lengthscale years")
+curve(dgamma(x, lengthscale_prior[1], lengthscale_prior[2]), xlab = "years", add = TRUE, from = 0)
 
-
-
-S = extract(model, "Sigma")[[1]]
-mus = extract(model, "mu")[[1]]
-scales = extract(model, "fn_sd")[[1]]
-
-i = sample.int(nrow(S), 1)
-joint = mus[i] + rmvnorm(5, sigma = S[i,,] * scales[i]^2)
-matplot(t(joint)[-N, ], type = "l", lty = 1,
-        ylim = c(-8, 8))
+plot(density(rstan::extract(model, "nugget_sd")[[1]], adj = .1), col = 2, main = "nugget_sd")
+curve(dgamma(x, nugget_prior[1], nugget_prior[2]), xlab = "years", add = TRUE, from = 0)
 
 
-plot(S[sample.int(2000, 1),1,-N],
-     type = "o", cex = 0.75, pch = 16, ylim = c(0, 1))
+par(mfrow = c(1, 1))

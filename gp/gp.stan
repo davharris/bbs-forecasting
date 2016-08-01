@@ -1,10 +1,14 @@
 data {
   int<lower=1> N1;
   int<lower=1> N2;
-  vector[N1 + N2] x;
-  vector[N1] y1;
-  matrix[N1 + N2, N1 + N2] d;
-  real prior_mu_scale;
+  vector<lower=1>[N1 + N2] x;
+  vector<lower=1>[N1] y1;
+  matrix<lower=0>[N1 + N2, N1 + N2] d;
+
+  real<lower=0> means_prior[2];
+  real<lower=0> fn_scale_prior[2];
+  real<lower=0> nugget_prior[2];
+  real<lower=0> lengthscale_prior[2];
 }
 transformed data {
   int<lower=2> N;
@@ -20,16 +24,17 @@ parameters {
 transformed parameters {
   vector[N] mu_vec;
   matrix[N,N] L;
-  matrix[N,N] Sigma;
-  matrix[N,N] nugget_matrix;
+  matrix<lower=0>[N,N] Sigma;
+  matrix<lower=0>[N,N] nugget_matrix;
 
   Sigma = exp(-d / lengthscale);
 
   for (i in 1:N){
     for (j in 1:N){
-      Sigma[i,j] = (1.0 +
-                    sqrt(3) * d[i,j] / lengthscale) *
-                      exp(-sqrt(3) * d[i,j] / lengthscale);
+      // Saved for later: Matern 3/2
+      // Sigma[i,j] = (1.0 +
+      //               sqrt(3) * d[i,j] / lengthscale) *
+      //                 exp(-sqrt(3) * d[i,j] / lengthscale);
       nugget_matrix[i,j] = i==j ? nugget_sd^2 : 0.0;
     }
   }
@@ -41,29 +46,18 @@ transformed parameters {
   }
 }
 model {
-
   // Bookkeeping //
-
   vector[N] y;
   for (n in 1:N1) y[n] = y1[n];
   for (n in 1:N2) y[N1 + n] = y2[n];
 
   // priors //
-
-  // Lengthscale is probably on the order of 1 sd(x)
-  lengthscale ~ student_t(10, 0, 5);
-
-  // gamma(4, 1) prior has a peak around 3 sd (i.e. function's variance is about
-  // 3^2 times as big as the variance of the observed portion)
-  fn_sd ~ gamma(3.0, 1.0);
-
-  // Nugget shouldn't be 0 or enormous. Prior peaked around sqrt(1/2)
-  // corresponds to a nugget that accounts for half of the variance
-  nugget_sd ~ gamma(2.0, sqrt(2.0));
-
-  mu ~ cauchy(mean(y), 2.0);
+  mu ~ normal(means_prior[1], means_prior[2]); // Weakly pull mu toward global mu
+  mu ~ normal(mean(y1), means_prior[2]);       // Pull closer to the observed mean
+  fn_sd ~ gamma(fn_scale_prior[1], fn_scale_prior[2]);
+  lengthscale ~ gamma(lengthscale_prior[1], lengthscale_prior[2]);
+  nugget_sd ~ gamma(nugget_prior[1], nugget_prior[2]);
 
   // likelihood //
-
   y ~ multi_normal_cholesky(mu_vec, L);
 }

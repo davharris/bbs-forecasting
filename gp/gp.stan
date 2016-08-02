@@ -9,6 +9,8 @@ data {
   real<lower=0> fn_scale_prior[2];
   real<lower=0> nugget_prior[2];
   real<lower=0> lengthscale_prior[2];
+
+  real<lower=0> full_sd;
 }
 transformed data {
   int<lower=2> N;
@@ -31,7 +33,7 @@ transformed parameters {
 
   for (i in 1:N){
     for (j in 1:N){
-      // Saved for later: Matern 3/2
+      // //Saved for later: Matern 3/2
       // Sigma[i,j] = (1.0 +
       //               sqrt(3) * d[i,j] / lengthscale) *
       //                 exp(-sqrt(3) * d[i,j] / lengthscale);
@@ -52,11 +54,12 @@ model {
   for (n in 1:N2) y[N1 + n] = y2[n];
 
   // priors //
-  mu ~ normal(means_prior[1], means_prior[2]); // Weakly pull mu toward global mu
-  mu ~ normal(mean(y1), means_prior[2]);       // Pull closer to the observed mean
+  mu ~ normal(means_prior[1], means_prior[2]); // Global mean
+  mu ~ normal(mean(y1), means_prior[2]);       // Observed mean
+
   fn_sd ~ gamma(fn_scale_prior[1], fn_scale_prior[2]);
   lengthscale ~ gamma(lengthscale_prior[1], lengthscale_prior[2]);
-  nugget_sd ~ gamma(nugget_prior[1], nugget_prior[2]);
+  nugget_sd ~ normal(nugget_prior[1], nugget_prior[2]);
 
   // likelihood //
   y ~ multi_normal_cholesky(mu_vec, L);

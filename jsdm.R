@@ -30,22 +30,23 @@ train_y = as.matrix(d[d$year <= last_train_year, is_y])
 
 
 net = mistnet(
-  train_x, 
+  scale(train_x), 
   train_y, 
-  n_z = 2,
+  n_z = 5,
   layers = list(
     mistnet2::layer(
       activator = elu_activator,
       n_nodes = 10,
-      weight_prior = make_distribution("NO", mu = 0, sigma = 1)
+      weight_prior = make_distribution("NO", mu = 0, sigma = .1)
     ),
     mistnet2::layer(
       activator = sigmoid_activator,
       n_nodes = ncol(train_y),
-      weight_prior = make_distribution("NO", mu = 0, sigma = 1)
+      weight_prior = make_distribution("NO", mu = 0, sigma = .1)
     )
   ),
   error_distribution = make_distribution("BI", bd = 1),
   fit = FALSE
 )
 
+net = mistnet_fit(network = net, itnmax = 1000)

@@ -15,8 +15,7 @@ species_data = get_species_data() %>%
 d = x %>% 
   left_join(species_data) %>% 
   select(site_id, english_common_name, abundance, lat, long, year) %>% 
-  filter(year == 2010) %>% 
-  filter(grepl("Woodpecker", .$english_common_name)) %>% 
+  filter(year == 2010) %>%
   spread(english_common_name, abundance, fill = 0)
 
 locations = distinct(d, long, lat)
@@ -45,9 +44,16 @@ data$N_species = nrow(data$y)
 
 compiled = stan_model("abundance/abundance.stan")
 
-m = sampling(compiled, data = data, verbose = TRUE, chains = 1)
-extracted = extract(m)
+v = vb(compiled, data = data)
+extracted = extract(v)
 
+
+stop()
+dd = cbind(d, noise = colMeans(extracted$raw_noise))
+
+ggplot(dd, aes(x = long, y = lat, color = noise)) + 
+  geom_point() +
+  scale_color_viridis()
 
 i = 5
 data_frame(

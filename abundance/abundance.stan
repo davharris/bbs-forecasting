@@ -17,13 +17,13 @@ parameters {
   real sigma[N_species];
   real<lower=0> phi[N_species];
 }
-transformed parameters {
+model {
+  // Linear predictors
   matrix[N, N_species] x_beta_zero;
   matrix[N, N_species] x_beta_count;
   x_beta_zero = x * beta_zero;
   x_beta_count = x * beta_count;
-}
-model {
+  
   // Priors
   alpha_zero ~ logistic(0, 10);
   alpha_count ~ normal(0, 10);
@@ -36,7 +36,7 @@ model {
     beta_count[i] ~ normal(0, 1);
   }
   
-
+  // Latent random variables
   raw_noise ~ normal(0, 1);
   
   // likelihood

@@ -269,7 +269,51 @@ Looked at how error changed as the time horizon of forecasting lengthened
 
 ## Results and conclusions
 
-* None of the models actually work all that well, compared to baseline.
+* The mixed model (which formed the basis of our "average" predictions) found 
+  that 70% of the variance in richness in the training set could be explained 
+  by differences among sites, and 21% could be explained by differences among 
+  observers. The remaining 9% represents residual variation, where a given 
+  observer might report a different number of species on different runs of the 
+  same transect.
+* Over the time period we analyzed, site-level richness was mostly stationary 
+  once observer effecs were accounted for, which explains the success of the 
+  "average" baseline.
+* If site-level richness was approximately stationary, then why does error 
+  increase over time? One would expect constant error under stationarity.  
+  This apparent contradiction can be resolved by examining [[Figure]]: most of 
+  the increase in error was due to an influx of observers whose tendencies were
+  poorly identified. Looking across the rows of panel A, we see very little 
+  change in MSE over time for a given type of observer, but panel B shows a 
+  steady increase in the number of observers whose estimates could only be 
+  identified to within +/- 5 species (or worse) because they did not make
+  enough observations in different sites in the training set to determine
+  their [[biases]] any more precisely.
+
+* None of the models reliably outperformed both baselines. Depending on the 
+  criterion and whether observer differences were accounted for, the best 
+  model was usually "naive" or "average." The "auto.arima" and "richness-gbm" 
+  models occasionally produced less error than either baseline, but their MSE 
+  values still averaged substantially higher than the baselines. Of the two 
+  baselines, predictions based on the long-term mean ("average") were more 
+  reliable if observer effects could be accounted for, while predictions based 
+  on the most-recently observed value ("naive") were better prepared to deal 
+  with observer turnover. In general, the models produced confidence intervals 
+  that were too narrow; [[discuss naive and possibly mistnet here]].
+* The models that were fit to individual sites (i.e. the baselines and the 
+  ARIMA methods) got most or all of the inter-site variation by default, 
+  which made them difficult to beat. The SDMs and GBM-richness could only 
+  outperform the baselines on intra-site variation, which represented a very 
+  small portion of the variance; in general, the inter-site errors were large 
+  enough to overpower any such gains.
+* Consistent with Distler (2015, Journal of Biogeography), we found that the 
+  stacked SDMs (based on random forests) and the nonlinear regression of 
+  richness on environment ("gbm") produced point estimates of similar quality, 
+  though SDMs were somewhat less accurate in our case. However, we found large 
+  differences between the two models in their ability to accurately report 
+  uncertainty; the stacked SDMs' confidence intervals were only half of their 
+  nominal widths, on average, producing the worst coverage and highest deviance 
+  of any method we tested.
+* [[Mistnet goes here; point estimates were worse than RF but coverage was very good]]
 * Temporal richness variability doesn't track the predictors we use; sites have "inertia"
   * Cite 3 papers Ethan found on consistancy of alpha even when composition changes dramatically
   * Good for absolute accuracy, little room for improvement over baseline
@@ -285,11 +329,19 @@ Looked at how error changed as the time horizon of forecasting lengthened
   * extended predictor set
   * birds arguably migrate quickly enough to make equlibrium \& especially space-for-time assumptions less ridiculous
   * errors for individual species can cancel out; only asking for aggregate values
+  * Counterpoint: 
+    * if most variation is among sites, maybe we want site-level means for predictors rather 
+      than annual values (or, why not use both?)
 * Value of stacking versus predicting the quantitity of interest directly
 * Need to start doing this, even if we're bad at it.
-  * We've posted predictions for the next N years of BBS data, using several methods, and invite others to do so as well.
+  * We've posted predictions for the next N years of BBS data, using several methods, 
+    and invite others to do so as well.
 * Dig around in the residuals for insights
-* SDM's and time series models may not be accounting for the ecology of north american birds. Most of them migrate, so whether they are observed or not at the same time every year is a function of their migratory phenology. The migratory patterns of several species have been correlated with NDVI (Renfrew et al 2013). 
+* SDM's and time series models may not be accounting for the ecology of north 
+  american birds. Most of them migrate, so whether they are observed or not at 
+  the same time every year is a function of their migratory phenology. The 
+  migratory patterns of several species have been correlated with NDVI (Renfrew 
+  et al 2013). 
 
 
 ## misc

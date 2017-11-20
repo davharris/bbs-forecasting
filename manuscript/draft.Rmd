@@ -270,11 +270,13 @@ table_data %>%
     format = "latex",
     escape = FALSE,
     booktabs = TRUE,
-    caption = table_caption
+    caption = table_caption,
+    align = c("l", "l", "c", "c", "c")
   ) %>%
   add_header_above(c(" " = 2, "Predictors" = 3)) %>%
   group_rows("Single-site models", 1, 3) %>%
-  group_rows("Environmental models", 4, 6) %>% kable_styling(position = "center")
+  group_rows("Environmental models", 4, 6) %>% 
+  kable_styling(position = "center")
 ```
 
 \end{singlespace}

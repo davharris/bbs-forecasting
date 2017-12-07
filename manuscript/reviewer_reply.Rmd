@@ -108,7 +108,11 @@
 
 *Line 276: Is one of the potential reasons that richness is stationary that presence/absence on the BBS varies less than other measures – maybe abundance, or other measures of diversity are more variable?*
 
+>We agree that this is likely. Richness seems to be surprisingly stable in many systems, even when other measures change substantially, as we note on lines [[place we cite Dornelas et al.]] and [[[other place we cite Dornelas et al.]].
+
 *Line 294: Is the narrow predictive distribution for the stacked SDM also why this exhibits the strongest trend in decreasing coverge as a function of forecast length (Fig 5)?*
+
+>Yes, exactly. See lines [[XX]].
 
 *Line 329 – maybe reword, you use forecast 3x in this sentence*
 
